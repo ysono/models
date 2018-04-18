@@ -22,7 +22,7 @@ import sys
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
-from official.mnist import dataset
+from official.datasets.image import mnist
 from official.utils.arg_parsers import parsers
 from official.utils.logs import hooks_helper
 from official.utils.misc import model_helpers
@@ -204,7 +204,7 @@ def main(argv):
     # When choosing shuffle buffer sizes, larger sizes result in better
     # randomness, while smaller sizes use less memory. MNIST is a small
     # enough dataset that we can easily shuffle the full epoch.
-    ds = dataset.train(flags.data_dir)
+    ds = mnist.train(flags.data_dir)
     ds = ds.cache().shuffle(buffer_size=50000).batch(flags.batch_size)
 
     # Iterate through the dataset a set number (`epochs_between_evals`) of times
@@ -213,7 +213,7 @@ def main(argv):
     return ds
 
   def eval_input_fn():
-    return dataset.test(flags.data_dir).batch(
+    return mnist.test(flags.data_dir).batch(
         flags.batch_size).make_one_shot_iterator().get_next()
 
   # Set up hook that outputs training logs every 100 steps.

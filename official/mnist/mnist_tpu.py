@@ -25,7 +25,7 @@ from __future__ import print_function
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
-from official.mnist import dataset
+from official.datasets.image import mnist
 from official.mnist import mnist
 
 # Cloud TPU Cluster Resolver flags
@@ -116,7 +116,7 @@ def train_input_fn(params):
   # Retrieves the batch size for the current shard. The # of shards is
   # computed according to the input pipeline deployment. See
   # `tf.contrib.tpu.RunConfig` for details.
-  ds = dataset.train(data_dir).cache().repeat().shuffle(
+  ds = mnist.train(data_dir).cache().repeat().shuffle(
       buffer_size=50000).apply(
           tf.contrib.data.batch_and_drop_remainder(batch_size))
   images, labels = ds.make_one_shot_iterator().get_next()
@@ -126,7 +126,7 @@ def train_input_fn(params):
 def eval_input_fn(params):
   batch_size = params["batch_size"]
   data_dir = params["data_dir"]
-  ds = dataset.test(data_dir).apply(
+  ds = mnist.test(data_dir).apply(
       tf.contrib.data.batch_and_drop_remainder(batch_size))
   images, labels = ds.make_one_shot_iterator().get_next()
   return images, labels

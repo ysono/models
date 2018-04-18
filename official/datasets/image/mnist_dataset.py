@@ -77,7 +77,7 @@ def download(directory, filename):
   return filepath
 
 
-def dataset(directory, images_file, labels_file):
+def construct_dataset(directory, images_file, labels_file):
   """Download and parse MNIST dataset."""
 
   images_file = download(directory, images_file)
@@ -107,10 +107,55 @@ def dataset(directory, images_file, labels_file):
 
 def train(directory):
   """tf.data.Dataset object for MNIST training data."""
-  return dataset(directory, 'train-images-idx3-ubyte',
-                 'train-labels-idx1-ubyte')
+  return construct_dataset(directory, 'train-images-idx3-ubyte',
+                           'train-labels-idx1-ubyte')
 
 
 def test(directory):
   """tf.data.Dataset object for MNIST test data."""
-  return dataset(directory, 't10k-images-idx3-ubyte', 't10k-labels-idx1-ubyte')
+  return construct_dataset(directory, 't10k-images-idx3-ubyte',
+                           't10k-labels-idx1-ubyte')
+
+
+def make_training_input_fn(data_dir, use_tpu, repeat_epochs=None):
+  """Constructs an input function for Estimator to use during training.
+
+  Args:
+    data_dir: The location of the raw data files.
+    use_tpu: Whether or not training will occur on a TPU.
+    repeat_epochs: The number of epochs that the dataset should yield. This
+      parameter is forced to None if use_tpu is True."""
+  # type: (str, bool, bool) -> function
+  buffer_size = NUM_IMAGES["train"]
+  repeat_epochs = None if use_tpu else repeat_epochs
+  def input_fn(params):
+    # type: (dict) -> tf.data.Dataset
+    batch_size = params["batch_size"]
+    dataset = train(data_dir).cache().repeat(repeat_epochs).shuffle(
+        buffer_size=buffer_size)
+    dataset = (
+      # TPUs do not allow fractional batches.
+      dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+      if use_tpu else dataset.batch(batch_size)
+    )
+    return dataset
+  return input_fn
+
+
+def make_eval_input_fn(data_dir, use_tpu):
+  """Constructs an input function for Estimator to use during evaluation.
+
+  Args:
+    data_dir: The location of the raw data files.
+    use_tpu: Whether or not training will occur on a TPU."""
+  # type: (str, bool) -> function
+  def input_fn(params):
+    # type: (dict) -> tf.data.Dataset
+    batch_size = params["batch_size"]
+    dataset = test(data_dir)
+    return (
+      # TPUs do not allow fractional batches.
+      dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+      if use_tpu else dataset.batch(batch_size)
+    ).make_one_shot_iterator().get_next()
+  return input_fn

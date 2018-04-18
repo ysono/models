@@ -17,6 +17,8 @@ import argparse
 
 import tensorflow as tf
 
+from official.utils.misc import constants
+
 
 # Map string to (TensorFlow dtype, default loss scale)
 DTYPE_MAP = {
@@ -34,7 +36,6 @@ class Parser(argparse.ArgumentParser):
     super(Parser, self).__init__(add_help=True, parents=parents,
                                  prefix_chars=False)
     self.allow_parse_known = False
-
 
   def parse_args(self, args=None, namespace=None):
     args = args or []
@@ -55,7 +56,6 @@ class Parser(argparse.ArgumentParser):
 
   def secondary_arg_parsing(self, args):
     self.parse_dtype_info(args)
-    self.resolve_tpu(args)
     self.tpu_checks(args)
 
   @staticmethod
@@ -80,27 +80,35 @@ class Parser(argparse.ArgumentParser):
     flags.loss_scale = flags.loss_scale or default_loss_scale
 
   @staticmethod
-  def resolve_tpu(flags):
+  def gpu_checks(flags):
+    if "num_gpus" in vars(flags) and flags.num_gpus > constants.NUM_GPUS:
+      raise ValueError("{} GPUs specified, but only {} detected".format(
+          flags.num_gpus,
+          constants.NUM_GPUS
+      ))
+
+    if ("num_gpus" in vars(flags) and "batch_size" in vars(flags) and
+        flags.num_gpus > 1 and flags.batch_size % flags.num_gpus != 0):
+      # For multi-gpu, batch-size must be a multiple of the number of GPUs.
+      #
+      # Note that this should eventually be handled by replicate_model_fn
+      # directly. Multi-GPU support is currently experimental, however,
+      # so doing the work here until that feature is in place.
+      remainder = batch_size % num_gpus
+      err = ('When running with multiple GPUs, batch size '
+             'must be a multiple of the number of available GPUs. Found {} '
+             'GPUs with a batch size of {}; try --batch_size={} instead.'
+             ).format(num_gpus, batch_size, batch_size - remainder)
+      raise ValueError(err)
+
+  @staticmethod
+  def tpu_checks(flags):
     if "tpu" not in vars(flags) or flags.tpu is None:
       return
 
     if "num_gpus" in vars(flags) and flags.num_gpus > 0:
       tf.logging.warning("TPU flag passed. Setting num_gpu to zero.")
       flags.num_gpus = 0  # TPU takes precedence over GPU
-
-    if flags.tpu.startswith("grpc://"):
-      return
-
-    flags.tpu = tf.contrib.cluster_resolver.TPUClusterResolver(
-        FLAGS.tpu,
-        zone=flags.tpu_zone,
-        project=flags.gcp_project
-    ).get_master()
-
-  @staticmethod
-  def tpu_checks(flags):
-    if "tpu" not in vars(flags) or flags.tpu is None:
-      return
 
     for key in ["data_dir", "model_dir"]:
       if key not in vars(flags) or vars(flags)[key] is None:

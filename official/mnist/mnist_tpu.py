@@ -25,7 +25,7 @@ from __future__ import print_function
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
-from official.datasets.image import mnist
+from official.datasets.image import mnist_dataset
 from official.mnist import mnist
 
 # Cloud TPU Cluster Resolver flags
@@ -86,7 +86,7 @@ def model_fn(features, labels, mode, params):
   if isinstance(image, dict):
     image = features["image"]
 
-  model = mnist.create_model("channels_last")
+  model = mnist_dataset.create_model("channels_last")
   logits = model(image, training=(mode == tf.estimator.ModeKeys.TRAIN))
   loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
@@ -116,7 +116,7 @@ def train_input_fn(params):
   # Retrieves the batch size for the current shard. The # of shards is
   # computed according to the input pipeline deployment. See
   # `tf.contrib.tpu.RunConfig` for details.
-  ds = mnist.train(data_dir).cache().repeat().shuffle(
+  ds = mnist_dataset.train(data_dir).cache().repeat().shuffle(
       buffer_size=50000).apply(
           tf.contrib.data.batch_and_drop_remainder(batch_size))
   images, labels = ds.make_one_shot_iterator().get_next()
@@ -126,7 +126,7 @@ def train_input_fn(params):
 def eval_input_fn(params):
   batch_size = params["batch_size"]
   data_dir = params["data_dir"]
-  ds = mnist.test(data_dir).apply(
+  ds = mnist_dataset.test(data_dir).apply(
       tf.contrib.data.batch_and_drop_remainder(batch_size))
   images, labels = ds.make_one_shot_iterator().get_next()
   return images, labels

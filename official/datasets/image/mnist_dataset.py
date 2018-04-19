@@ -117,12 +117,14 @@ def test(directory):
                            't10k-labels-idx1-ubyte')
 
 
-def make_training_input_fn(data_dir, use_tpu, repeat_epochs=None):
+def make_training_input_fn(data_dir, use_tpu, default_batch_size,
+                           repeat_epochs=None):
   """Constructs an input function for Estimator to use during training.
 
   Args:
     data_dir: The location of the raw data files.
     use_tpu: Whether or not training will occur on a TPU.
+    default_batch_size: The number of examples in each batch.
     repeat_epochs: The number of epochs that the dataset should yield. This
       parameter is forced to None if use_tpu is True."""
   # type: (str, bool, bool) -> function
@@ -130,7 +132,13 @@ def make_training_input_fn(data_dir, use_tpu, repeat_epochs=None):
   repeat_epochs = None if use_tpu else repeat_epochs
   def input_fn(params):
     # type: (dict) -> tf.data.Dataset
-    batch_size = params["batch_size"]
+
+    # The reason for this redundancy is a difference in the Estimator and
+    # TPUEstimator APIs. TPUEstimator automatically populates batch_size, and
+    # does not allow users to set that field. This code is compatible with
+    # both APIs, which still respecting TPUEstimator's parameter.
+    batch_size = params.get("batch_size", default_batch_size)
+
     dataset = train(data_dir).cache().repeat(repeat_epochs).shuffle(
         buffer_size=buffer_size)
     dataset = (
@@ -142,16 +150,20 @@ def make_training_input_fn(data_dir, use_tpu, repeat_epochs=None):
   return input_fn
 
 
-def make_eval_input_fn(data_dir, use_tpu):
+def make_eval_input_fn(data_dir, use_tpu, default_batch_size):
   """Constructs an input function for Estimator to use during evaluation.
 
   Args:
     data_dir: The location of the raw data files.
-    use_tpu: Whether or not training will occur on a TPU."""
+    use_tpu: Whether or not training will occur on a TPU.
+    default_batch_size: The number of examples in each batch."""
   # type: (str, bool) -> function
   def input_fn(params):
     # type: (dict) -> tf.data.Dataset
-    batch_size = params["batch_size"]
+
+    # See above.
+    batch_size = params.get("batch_size", default_batch_size)
+
     dataset = test(data_dir)
     return (
       # TPUs do not allow fractional batches.

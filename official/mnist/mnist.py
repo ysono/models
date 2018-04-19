@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import os
 import sys
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
@@ -27,6 +28,7 @@ from official.utils.arg_parsers import accelerator
 from official.utils.arg_parsers import base
 from official.utils.arg_parsers import parsers
 from official.utils.logs import hooks_helper
+
 from official.utils.misc import model_helpers
 
 LEARNING_RATE = 1e-4
@@ -137,10 +139,13 @@ def model_fn(features, labels, mode, params):
     # # Save accuracy scalar to Tensorboard output.
     # tf.summary.scalar('train_accuracy', accuracy[1])
 
+    minimize_op=optimizer.minimize(loss, tf.train.get_or_create_global_step())
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
     spec_args = dict(
         mode=mode,
         loss=loss,
-        train_op=optimizer.minimize(loss, tf.train.get_or_create_global_step())
+        train_op=tf.group(minimize_op, update_ops)
     )
     if use_tpu:
       return tf.contrib.tpu.TPUEstimatorSpec(**spec_args)
@@ -172,7 +177,7 @@ def construct_estimator(flags, use_tpu):
   params = {"use_tpu": use_tpu, "data_format": data_format}
   session_config=tf.ConfigProto(
       allow_soft_placement=True,
-      log_device_placement=True
+      log_device_placement=use_tpu
   )
 
   if use_tpu:
@@ -205,6 +210,7 @@ def construct_estimator(flags, use_tpu):
     distribution = tf.contrib.distribute.MirroredStrategy(
         num_gpus=flags.num_gpus
     )
+
   run_config = tf.estimator.RunConfig(
       model_dir=flags.model_dir,
       train_distribute=distribution,
@@ -224,9 +230,11 @@ def main(argv):
 
   mnist_classifier = construct_estimator(flags=flags, use_tpu=use_tpu)
 
+  # TODO(robieta@): Check which hooks can be used with which devices.
   # Set up hook that outputs training logs every 100 steps.
-  train_hooks = hooks_helper.get_train_hooks(
-      flags.hooks, batch_size=flags.batch_size)
+  # train_hooks = hooks_helper.get_train_hooks(
+  #     flags.hooks, batch_size=flags.batch_size)
+  train_hooks=[]
 
   if use_tpu:
     max_train_steps = (mnist_dataset.NUM_IMAGES["train"] *
@@ -237,8 +245,18 @@ def main(argv):
 
   # Train and evaluate model.
   for _ in range(flags.train_epochs // flags.epochs_between_evals):
+    train_input_fn = mnist_dataset.make_training_input_fn(
+        data_dir=flags.data_dir, use_tpu=use_tpu,
+        default_batch_size=flags.batch_size,
+        repeat_epochs=flags.epochs_between_evals)
+
     mnist_classifier.train(input_fn=train_input_fn, hooks=train_hooks,
                            max_steps=max_train_steps)
+
+    eval_input_fn = mnist_dataset.make_eval_input_fn(
+        data_dir=flags.data_dir, use_tpu=use_tpu,
+        default_batch_size=flags.batch_size)
+
     eval_results = mnist_classifier.evaluate(
         input_fn=eval_input_fn, steps=eval_steps)
     print('\nEvaluation results:\n\t%s\n' % eval_results)
@@ -249,7 +267,8 @@ def main(argv):
 
   # Export the model
   if flags.export_dir is not None:
-    image = tf.placeholder(tf.float32, [None, 28, 28])
+    image = tf.placeholder(
+        tf.float32, [None, mnist_dataset.NUM_IMAGES, mnist_dataset.NUM_IMAGES])
     input_fn = tf.estimator.export.build_raw_serving_input_receiver_fn({
         'image': image,
     })

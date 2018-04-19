@@ -387,6 +387,18 @@ def resnet_main(flags, model_function, input_function, shape=None):
   else:
     benchmark_logger = None
 
+  class GlobalStepHook(tf.train.SessionRunHook):
+    def __init__(self, dist):
+      super(GlobalStepHook, self).__init__()
+      self._distribution = dist
+
+    def after_run(self, run_context, run_values):  # pylint: disable=unused-argument
+      if tf.contrib.distribute.has_distribution_strategy():
+        with self._distribution.scope():
+          global_step = tf.train.get_global_step()
+          print(self._distribution.fetch(global_step))
+
+
   for _ in range(flags.train_epochs // flags.epochs_between_evals):
     train_hooks = hooks_helper.get_train_hooks(
         flags.hooks,
@@ -403,7 +415,7 @@ def resnet_main(flags, model_function, input_function, shape=None):
           num_epochs=flags.epochs_between_evals,
       )
 
-    classifier.train(input_fn=input_fn_train, hooks=train_hooks,
+    classifier.train(input_fn=input_fn_train, hooks=[GlobalStepHook(distribution)],
                      max_steps=flags.max_train_steps)
 
     print('Starting to evaluate.')

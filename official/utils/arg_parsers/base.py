@@ -34,7 +34,7 @@ class Parser(argparse.ArgumentParser):
                                 help="Detailed list of arguments.")
     parents = [preemptive_parser] +(parents or [])
     super(Parser, self).__init__(add_help=True, parents=parents,
-                                 prefix_chars=False)
+                                 allow_abbrev=False)
     self.allow_parse_known = False
 
   def parse_args(self, args=None, namespace=None):
@@ -56,6 +56,8 @@ class Parser(argparse.ArgumentParser):
 
   def secondary_arg_parsing(self, args):
     self.parse_dtype_info(args)
+    self.parse_max_gpus(args)
+    self.gpu_checks(args)
     self.tpu_checks(args)
 
   @staticmethod
@@ -78,6 +80,11 @@ class Parser(argparse.ArgumentParser):
       raise ValueError("Invalid dtype: {}".format(flags.dtype))
 
     flags.loss_scale = flags.loss_scale or default_loss_scale
+
+  @staticmethod
+  def parse_max_gpus(flags):
+    if "num_gpus" in vars(flags) and flags.num_gpus == -1:
+      flags.num_gpus = constants.NUM_GPUS
 
   @staticmethod
   def gpu_checks(flags):

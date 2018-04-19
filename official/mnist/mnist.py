@@ -171,8 +171,6 @@ def construct_estimator(flags, use_tpu):
 
   params = {"use_tpu": use_tpu, "data_format": data_format}
   session_config=tf.ConfigProto(
-      inter_op_parallelism_threads=flags.inter_op_parallelism_threads,
-      intra_op_parallelism_threads=flags.intra_op_parallelism_threads,
       allow_soft_placement=True,
       log_device_placement=True
   )
@@ -218,6 +216,7 @@ def construct_estimator(flags, use_tpu):
       params=params
   )
 
+
 def main(argv):
   parser = MNISTArgParser()
   flags = parser.parse_args(args=argv[1:])
@@ -229,10 +228,19 @@ def main(argv):
   train_hooks = hooks_helper.get_train_hooks(
       flags.hooks, batch_size=flags.batch_size)
 
+  if use_tpu:
+    max_train_steps = (mnist_dataset.NUM_IMAGES["train"] *
+                       flags.epochs_between_evals // flags.batch_size)
+    eval_steps = mnist_dataset.NUM_IMAGES["validation"] // flags.batch_size
+  else:
+    max_train_steps, eval_steps = None, None
+
   # Train and evaluate model.
   for _ in range(flags.train_epochs // flags.epochs_between_evals):
-    mnist_classifier.train(input_fn=train_input_fn, hooks=train_hooks)
-    eval_results = mnist_classifier.evaluate(input_fn=eval_input_fn)
+    mnist_classifier.train(input_fn=train_input_fn, hooks=train_hooks,
+                           max_steps=max_train_steps)
+    eval_results = mnist_classifier.evaluate(
+        input_fn=eval_input_fn, steps=eval_steps)
     print('\nEvaluation results:\n\t%s\n' % eval_results)
 
     if model_helpers.past_stop_threshold(flags.stop_threshold,

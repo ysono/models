@@ -169,12 +169,15 @@ def main(argv):
       config=run_config)
   # TPUEstimator.train *requires* a max_steps argument.
   estimator.train(input_fn=train_input_fn, max_steps=FLAGS.train_steps)
-  # TPUEstimator.evaluate *requires* a steps argument.
-  # Note that the number of examples used during evaluation is
-  # --eval_steps * --batch_size.
-  # So if you change --batch_size then change --eval_steps too.
-  if FLAGS.eval_steps:
-    estimator.evaluate(input_fn=eval_input_fn, steps=FLAGS.eval_steps)
+  # # TPUEstimator.evaluate *requires* a steps argument.
+  # # Note that the number of examples used during evaluation is
+  # # --eval_steps * --batch_size.
+  # # So if you change --batch_size then change --eval_steps too.
+  # if FLAGS.eval_steps:
+  #   estimator.evaluate(input_fn=eval_input_fn, steps=FLAGS.eval_steps)
+  for i in range(1000):
+    print("\n" * 2, "eval_step {}".format(i), "\n" * 2)
+    estimator.evaluate(input_fn=eval_input_fn, steps=1)
 
 
 if __name__ == "__main__":

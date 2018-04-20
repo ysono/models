@@ -117,7 +117,7 @@ class Parser(argparse.ArgumentParser):
       tf.logging.warning("TPU flag passed. Setting num_gpu to zero.")
       flags.num_gpus = 0  # TPU takes precedence over GPU
 
-    for key in ["data_dir", "model_dir"]:
+    for key in ["data_dir", "model_dir", "export_dir"]:
       if key not in vars(flags) or vars(flags)[key] is None:
         continue
       if not vars(flags)[key].startswith("gs://"):

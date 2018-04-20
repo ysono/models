@@ -127,6 +127,8 @@ def model_fn(features, labels, mode, params):
         })
   if mode == tf.estimator.ModeKeys.TRAIN:
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
+    if use_tpu:
+      optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
     logits = model(image, training=True)
     loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
@@ -251,7 +253,7 @@ def main(argv):
         repeat_epochs=flags.epochs_between_evals)
 
     mnist_classifier.train(input_fn=train_input_fn, hooks=train_hooks,
-                           max_steps=max_train_steps)
+                           steps=max_train_steps)
 
     eval_input_fn = mnist_dataset.make_eval_input_fn(
         data_dir=flags.data_dir, use_tpu=use_tpu,
